@@ -29,6 +29,27 @@ services:
     owners:
       - jurgenrgithub
 
+  plex:
+    name: plex
+    type: standalone
+    description: Plex Media Server for movies, TV, and music
+    path: services/plex
+    status: active
+    container_id: VM 150
+    hostname: plex
+    endpoints:
+      - name: web
+        url: https://192.168.7.5:32400
+        health_path: /web
+    dependencies:
+      - nfs
+    metadata:
+      language: none
+      framework: plex
+      storage: /media (NFS from PVE)
+    owners:
+      - jurgenrgithub
+
 # Template for adding new services:
 #
 #   new-service:
