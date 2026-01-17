@@ -14,6 +14,54 @@ Plex Media Server for streaming movies, TV shows, and music.
 | RAM | 8 GB |
 | Disk | 64 GB (fast-vm SSD) |
 | Storage | fast-vm (SSD) |
+| Machine | q35 (for PCI passthrough) |
+| GPU | Intel UHD 770 (iGPU passthrough) |
+
+## Hardware Transcoding
+
+Intel iGPU is passed through to the VM for hardware-accelerated transcoding.
+
+| Component | Details |
+|-----------|---------|
+| GPU | Intel UHD 770 (AlderLake-S GT1) |
+| PCI Address | 0000:00:02.0 |
+| Driver | i915 |
+| VA-API | Intel iHD driver 23.1.1 |
+| Kernel | 6.1.0-42-amd64 (standard, not cloud) |
+
+### Supported Codecs
+
+| Codec | Decode | Encode |
+|-------|--------|--------|
+| H.264 | Yes | Yes |
+| HEVC/H.265 | Yes | Yes |
+| VP9 | Yes | No |
+| AV1 | Yes | No |
+
+### Plex Settings
+
+Hardware transcoding is enabled in Preferences.xml:
+- `HardwareAcceleratedCodecs="1"` - Hardware decode
+- `HardwareAcceleratedEncoders="1"` - Hardware encode
+
+### Monitoring GPU Usage
+
+```bash
+# Real-time GPU monitor
+sudo intel_gpu_top
+
+# Check VA-API capabilities
+vainfo --display drm --device /dev/dri/renderD128
+
+# Verify Plex transcode session (look for transcodeHw fields)
+curl -s "http://localhost:32400/status/sessions?X-Plex-Token=<token>"
+```
+
+### Required Packages
+
+- `intel-media-va-driver-non-free` - Intel VA-API driver
+- `intel-gpu-tools` - GPU monitoring tools
+- `linux-image-amd64` - Standard kernel (not cloud) with i915 driver
 
 ## Endpoints
 
