@@ -1,0 +1,52 @@
+# ASO Services Catalog Manifest
+# This file defines all application services in this repository.
+# Services are registered with the ASO Catalog API on deployment.
+
+version: "1.0"
+repo: jurgenrgithub/services-repo
+
+services:
+  transcribe:
+    name: transcribe
+    type: application
+    description: Audio transcription service using OpenAI Whisper
+    path: services/transcribe
+    status: active
+    container_id: CT 350
+    hostname: aso-local-transcribe
+    endpoints:
+      - name: api
+        url: http://192.168.6.219:8080
+        health_path: /health
+    dependencies:
+      - dispatcher
+      - minio
+      - eventstore
+    metadata:
+      wp: WP-019
+      language: python
+      framework: flask
+    owners:
+      - jurgenrgithub
+
+# Template for adding new services:
+#
+#   new-service:
+#     name: new-service
+#     type: application
+#     description: Short description
+#     path: services/new-service
+#     status: provisioning  # provisioning | active | deprecated | inactive
+#     container_id: CT XXX
+#     hostname: aso-local-xxx
+#     endpoints:
+#       - name: api
+#         url: http://x.x.x.x:port
+#         health_path: /health
+#     dependencies:
+#       - dispatcher
+#     metadata:
+#       wp: WP-XXX
+#       language: python
+#     owners:
+#       - github-username

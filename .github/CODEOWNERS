@@ -1,0 +1,18 @@
+# ASO Services Repository - Code Owners
+# Each service directory is owned by its team.
+# Changes require approval from code owners.
+
+# Default owners for everything
+* @jurgenrgithub
+
+# Shared libraries - require platform team review
+/libs/ @jurgenrgithub
+
+# Tools - require platform team review
+/tools/ @jurgenrgithub
+
+# Service-specific ownership
+/services/transcribe/ @jurgenrgithub
+
+# Catalog manifest - require platform team review
+/catalog.yaml @jurgenrgithub
