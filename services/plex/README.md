@@ -72,13 +72,34 @@ curl -s "http://localhost:32400/status/sessions?X-Plex-Token=<token>"
 
 ## Media Storage
 
-Media files are stored on PVE host and mounted via NFS:
+Media files are stored on PVE host (cold8tb ZFS pool) and mounted via NFS.
 
-| Mount | Source | Contents |
-|-------|--------|----------|
-| /media/movies | 192.168.5.215:/srv/aso/media/movies | Movies |
-| /media/tv | 192.168.5.215:/srv/aso/media/tv | TV Shows |
-| /media/music | 192.168.5.215:/srv/aso/media/music | Music |
+| Component | Value |
+|-----------|-------|
+| ZFS Dataset | cold8tb/media |
+| PVE Path | /srv/aso/media |
+| Capacity | 7.1 TB |
+| Type | HDD (cold storage) |
+| NFS Export | 192.168.5.215:/srv/aso/media |
+| Plex Mount | /media |
+
+### Directory Structure
+
+| Plex Mount | PVE Path | Contents |
+|------------|----------|----------|
+| /media/movies | /srv/aso/media/movies | Movies |
+| /media/tv | /srv/aso/media/tv | TV Shows |
+| /media/music | /srv/aso/media/music | Music |
+
+### Adding Media
+
+```bash
+# On PVE host - Movies (use "Movie Name (Year)" format)
+/srv/aso/media/movies/Movie Name (2024)/Movie Name (2024).mkv
+
+# On PVE host - TV Shows (use "Show Name/Season X" format)
+/srv/aso/media/tv/Show Name/Season 1/Show Name - S01E01.mkv
+```
 
 ## Security
 
@@ -109,10 +130,34 @@ sudo ufw status
 sudo fail2ban-client status sshd
 ```
 
+## Monitoring
+
+Plex metrics are exported to Prometheus and visible in Grafana.
+
+| Component | Value |
+|-----------|-------|
+| Exporter | /usr/local/bin/plex_exporter.py |
+| Port | 9595 |
+| Service | plex-exporter.service |
+| Grafana Dashboard | Plex Media Server |
+
+### Metrics
+
+| Metric | Description |
+|--------|-------------|
+| plex_up | Server availability |
+| plex_sessions_total | Active sessions |
+| plex_transcodes_total | Active transcodes |
+| plex_transcode_hw_decode | HW decode sessions |
+| plex_transcode_hw_encode | HW encode sessions |
+| plex_library_size | Items per library |
+| plex_bandwidth_total_kbps | Total bandwidth |
+
 ## Dependencies
 
 - NFS share from PVE host (192.168.5.215:/srv/aso/media)
 - DHCP reservation for 192.168.7.5
+- Prometheus (VM 130) for metrics scraping
 
 ## Setup Date
 
