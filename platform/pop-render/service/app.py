@@ -21,6 +21,7 @@ from common.logging import setup_logging
 from config import Config
 from database import get_db_pool
 from storage import get_storage_client
+from queue import get_queue_manager
 from health import health_endpoint, readiness_endpoint, liveness_endpoint
 from metrics import metrics_endpoint, track_request_metrics
 
@@ -70,6 +71,15 @@ def init_app():
         logger.error(f"Failed to initialize storage client: {e}")
         sys.exit(1)
 
+    # Initialize queue manager
+    try:
+        queue_mgr = get_queue_manager()
+        queue_mgr.initialize()
+        logger.info("Queue manager initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize queue manager: {e}")
+        sys.exit(1)
+
     logger.info("Pop Render Service initialized successfully")
 
 
@@ -78,6 +88,14 @@ def shutdown_app():
     Gracefully shutdown application and close all connections.
     """
     logger.info("Shutting down Pop Render Service")
+
+    # Close queue manager
+    try:
+        queue_mgr = get_queue_manager()
+        queue_mgr.close()
+        logger.info("Queue manager closed")
+    except Exception as e:
+        logger.error(f"Error closing queue manager: {e}")
 
     # Close database pool
     try:
@@ -196,7 +214,7 @@ def metrics():
 
 
 # ============================================================================
-# API Endpoints (Placeholder for future implementation)
+# API Endpoints
 # ============================================================================
 
 @app.route('/', methods=['GET'])
@@ -213,8 +231,14 @@ def index():
             "readiness": "/health/readiness",
             "liveness": "/health/liveness",
             "metrics": "/metrics",
+            "api": "/v1",
         },
     })
+
+
+# Register API routes
+from routes import register_routes
+register_routes(app)
 
 
 # ============================================================================
