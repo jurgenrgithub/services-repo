@@ -24,6 +24,7 @@ from storage import get_storage_client
 from queue import get_queue_manager
 from health import health_endpoint, readiness_endpoint, liveness_endpoint
 from metrics import metrics_endpoint, track_request_metrics
+from monitoring import start_monitoring, stop_monitoring
 
 # Initialize logging
 logger = setup_logging("pop-render", level=Config.LOG_LEVEL)
@@ -80,6 +81,14 @@ def init_app():
         logger.error(f"Failed to initialize queue manager: {e}")
         sys.exit(1)
 
+    # Start background monitoring threads
+    try:
+        start_monitoring()
+        logger.info("Background monitoring started")
+    except Exception as e:
+        logger.error(f"Failed to start monitoring: {e}")
+        # Don't exit - monitoring is not critical for operation
+
     logger.info("Pop Render Service initialized successfully")
 
 
@@ -88,6 +97,13 @@ def shutdown_app():
     Gracefully shutdown application and close all connections.
     """
     logger.info("Shutting down Pop Render Service")
+
+    # Stop background monitoring
+    try:
+        stop_monitoring()
+        logger.info("Background monitoring stopped")
+    except Exception as e:
+        logger.error(f"Error stopping monitoring: {e}")
 
     # Close queue manager
     try:

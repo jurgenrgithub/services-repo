@@ -3,6 +3,9 @@ Prometheus metrics for ASO Render Service.
 
 Exposes application metrics for monitoring and observability, including
 request counters, latency histograms, and custom business metrics.
+
+This module integrates with monitoring.py for render-specific metrics
+and background monitoring threads.
 """
 
 import logging
@@ -10,6 +13,17 @@ from typing import Callable
 from prometheus_client import Counter, Histogram, Gauge, Info, generate_latest, CONTENT_TYPE_LATEST
 from flask import Response
 import time
+
+# Import monitoring system to ensure metrics are registered
+from monitoring import (
+    start_monitoring,
+    stop_monitoring,
+    render_jobs_total,
+    render_duration_seconds,
+    render_queue_depth,
+    render_storage_bytes_total,
+    process_resident_memory_bytes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,24 +92,9 @@ storage_operation_duration_seconds = Histogram(
 # ============================================================================
 # Render Job Metrics
 # ============================================================================
-
-render_jobs_total = Counter(
-    'render_jobs_total',
-    'Total render jobs',
-    ['status'],  # queued, completed, failed
-)
-
-render_job_duration_seconds = Histogram(
-    'render_job_duration_seconds',
-    'Render job processing time in seconds',
-    ['style'],
-    buckets=[1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0],
-)
-
-render_queue_depth = Gauge(
-    'render_queue_depth',
-    'Number of jobs waiting in render queue',
-)
+# Note: render_jobs_total, render_duration_seconds, and render_queue_depth
+# are now imported from monitoring.py which includes service labels and
+# background monitoring threads
 
 renders_in_progress = Gauge(
     'renders_in_progress',
@@ -210,10 +209,12 @@ def track_render_job(
         status: Job status (queued, completed, failed)
         style: Rendering style used
         duration: Job duration in seconds (for completed jobs)
+
+    Note: This function is deprecated. Use monitoring.track_render_job() instead
+    which includes service labels. Kept for backwards compatibility.
     """
-    render_jobs_total.labels(status=status).inc()
-    if status == 'completed' and duration > 0:
-        render_job_duration_seconds.labels(style=style).observe(duration)
+    from monitoring import track_render_job as _track_render_job
+    _track_render_job(status=status, style=style, duration_seconds=duration)
 
 
 def update_health_status(dependency: str, is_healthy: bool) -> None:

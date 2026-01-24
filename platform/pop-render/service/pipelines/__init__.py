@@ -16,6 +16,7 @@ from .base import RenderPipeline
 from .pop_poster import PopPosterPipeline
 from .pencil_sketch import PencilSketchPipeline
 from .between_lines import BetweenLinesPipeline
+from monitoring import track_render_job
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +196,14 @@ def process_render(
                             (output_key, preview_key, duration_ms, render_id)
                         )
 
+                # Track successful completion metrics
+                duration_seconds = duration_ms / 1000.0
+                track_render_job(
+                    status='completed',
+                    style=render_data['style_slug'],
+                    duration_seconds=duration_seconds,
+                )
+
                 logger.info(
                     "Render completed successfully",
                     extra={
@@ -229,6 +238,21 @@ def process_render(
     except Exception as e:
         # Calculate duration
         duration_ms = int((time.time() - start_time) * 1000)
+
+        # Track failure metrics (need to fetch style_slug if not already available)
+        style_slug = 'unknown'
+        try:
+            # Try to get style_slug from render_data if it exists
+            if 'render_data' in locals() and render_data:
+                style_slug = render_data.get('style_slug', 'unknown')
+        except:
+            pass
+
+        track_render_job(
+            status='failed',
+            style=style_slug,
+            duration_seconds=0.0,
+        )
 
         logger.error(
             "Render failed",
