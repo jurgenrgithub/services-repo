@@ -50,6 +50,71 @@ services:
     owners:
       - jurgenrgithub
 
+  pop-render:
+    name: pop-render
+    version: 1.0.0
+    type: application
+    description: CPU-intensive image rendering service for Jules & Zest pop-art transformations
+    path: services/pop-render
+    status: active
+    container_id: CT 390
+    hostname: ct390
+    port: 8089
+    endpoints:
+      - name: health
+        path: /health
+        url: http://ct390:8089/health
+        method: GET
+      - name: metrics
+        path: /metrics
+        url: http://ct390:8089/metrics
+        method: GET
+      - name: create_render
+        path: /v1/renders
+        url: http://ct390:8089/v1/renders
+        method: POST
+      - name: get_render
+        path: /v1/renders/{id}
+        url: http://ct390:8089/v1/renders/{id}
+        method: GET
+      - name: download_render
+        path: /v1/renders/{id}/download
+        url: http://ct390:8089/v1/renders/{id}/download
+        method: GET
+      - name: preview_render
+        path: /v1/renders/{id}/preview
+        url: http://ct390:8089/v1/renders/{id}/preview
+        method: GET
+      - name: size_presets
+        path: /v1/size-presets
+        url: http://ct390:8089/v1/size-presets
+        method: GET
+      - name: openapi
+        path: /v1/openapi.json
+        url: http://ct390:8089/v1/openapi.json
+        method: GET
+    dependencies:
+      - name: PostgreSQL
+        type: database
+        database: aso_control
+        schema: aso_render
+      - name: MinIO
+        type: object-storage
+        bucket: render-assets
+      - name: Redis
+        type: cache
+        host: localhost
+        port: 6379
+        database: 0
+    metadata:
+      tech_stack: Flask + RQ + Pillow
+      patterns:
+        - async-job-queue
+        - event-emission
+        - polling-based-status
+    owners:
+      - jurgenrgithub
+
 # Template for adding new services:
 #
 #   new-service:
