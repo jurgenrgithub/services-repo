@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+.eggs/
+*.egg
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.env
+.ENV/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+.nox/
+
+# Build
+build/
+dist/
+*.manifest
+*.spec
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
