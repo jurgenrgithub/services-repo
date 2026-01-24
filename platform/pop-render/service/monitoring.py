@@ -59,8 +59,8 @@ render_storage_bytes_total = Gauge(
 # Process Metrics
 # ============================================================================
 
-process_resident_memory_bytes = Gauge(
-    'process_resident_memory_bytes',
+pop_render_process_rss_bytes = Gauge(
+    'pop_render_process_rss_bytes',
     'Resident memory size in bytes',
     ['service'],
 )
@@ -150,7 +150,7 @@ class QueueDepthMonitor:
         Implements root cause fix: directly queries RQ queue count
         instead of relying on cached values that could be stale.
         """
-        from queue import get_queue_manager
+        from render_queue import get_queue_manager
 
         queue_mgr = get_queue_manager()
 
@@ -370,7 +370,7 @@ class ProcessMemoryMonitor:
         memory_info = self._process.memory_info()
         rss_bytes = memory_info.rss
 
-        process_resident_memory_bytes.labels(service='pop-render').set(rss_bytes)
+        pop_render_process_rss_bytes.labels(service='pop-render').set(rss_bytes)
         logger.debug(
             "Process memory updated",
             extra={

@@ -65,6 +65,7 @@ class StorageClient:
             self._client = boto3.client(
                 's3',
                 endpoint_url=Config.MINIO_ENDPOINT,
+                verify=False,  # Disable SSL verification for self-signed certs
                 aws_access_key_id=Config.MINIO_ACCESS_KEY,
                 aws_secret_access_key=Config.MINIO_SECRET_KEY,
                 config=BotoConfig(

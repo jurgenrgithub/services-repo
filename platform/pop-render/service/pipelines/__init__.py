@@ -62,9 +62,20 @@ def process_render(
         Exception: If rendering fails
     """
     from database import get_db_pool
+    from database import db_pool as db_pool_global
     from storage import get_storage_client
+    from storage import storage_client as storage_global
 
     start_time = time.time()
+    
+    # Auto-initialize for worker context (RQ workers dont go through app init)
+    if not db_pool_global._initialized:
+        logger.info("Initializing database pool for worker")
+        db_pool_global.initialize()
+    if not storage_global._initialized:
+        logger.info("Initializing storage client for worker")
+        storage_global.initialize()
+    
     db_pool = get_db_pool()
     storage = get_storage_client()
 
@@ -132,8 +143,10 @@ def process_render(
             target_height = int(render_data['height_inches'] * render_data['dpi'])
 
             # Create pipeline and process
+            # Load the source image
+            source_image = Image.open(input_path)
             pipeline = pipeline_class()
-            output_image = pipeline.process(input_path)
+            output_image = pipeline.render(source_image)
 
             # Resize to target dimensions
             if output_image.size != (target_width, target_height):

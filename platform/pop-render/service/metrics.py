@@ -22,7 +22,7 @@ from monitoring import (
     render_duration_seconds,
     render_queue_depth,
     render_storage_bytes_total,
-    process_resident_memory_bytes,
+    pop_render_process_rss_bytes,
 )
 
 logger = logging.getLogger(__name__)

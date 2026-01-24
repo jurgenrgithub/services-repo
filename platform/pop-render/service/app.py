@@ -14,14 +14,14 @@ from flask import Flask, request, jsonify
 import time
 
 # Add libs to path for common utilities
-sys.path.insert(0, '/home/agent/workspaces/3cc47d96-a71e-42bc-918f-a1566ebef2df/libs')
+sys.path.insert(0, '/opt/libs')
 
 from common.logging import setup_logging
 
 from config import Config
 from database import get_db_pool
 from storage import get_storage_client
-from queue import get_queue_manager
+from render_queue import get_queue_manager
 from health import health_endpoint, readiness_endpoint, liveness_endpoint
 from metrics import metrics_endpoint, track_request_metrics
 from monitoring import start_monitoring, stop_monitoring
@@ -272,6 +272,8 @@ def create_app():
     return app
 
 
+# Initialize app on module load for WSGI servers
+init_app()
 if __name__ == '__main__':
     """
     Development server entry point.
