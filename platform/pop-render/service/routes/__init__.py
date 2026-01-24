@@ -17,7 +17,7 @@ def register_routes(app):
     Args:
         app: Flask application instance
     """
-    from routes import renders, size_presets
+    from routes import renders, size_presets, openapi
 
     # Import route handlers (they will register themselves with v1_bp)
     # This happens when the modules are imported

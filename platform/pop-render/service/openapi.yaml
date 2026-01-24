@@ -1,0 +1,812 @@
+openapi: 3.0.3
+info:
+  title: ASO Render Service API
+  version: 1.0.0
+  description: |
+    RESTful API for artistic image rendering with high-resolution TIFF output.
+
+    The ASO Render Service transforms uploaded images into artistic renderings
+    using configurable styles and print-ready size presets. All renders produce
+    300 DPI TIFF files suitable for professional printing.
+
+    ## Features
+    - Async rendering with job status polling
+    - Multiple artistic styles
+    - Standard print size presets (9x12, 12x16, 16x20, 18x24, 24x36)
+    - TIFF output with JPEG preview
+    - Presigned URLs for secure downloads
+    - Enterprise-grade monitoring and health checks
+
+  contact:
+    name: ASO Platform Team
+    email: platform@aso.example.com
+
+servers:
+  - url: http://localhost:8089
+    description: Local development
+  - url: https://api.aso.example.com
+    description: Production
+
+tags:
+  - name: renders
+    description: Render job operations
+  - name: presets
+    description: Size preset information
+  - name: monitoring
+    description: Health and metrics endpoints
+  - name: documentation
+    description: API documentation
+
+paths:
+  /v1/renders:
+    post:
+      summary: Create render job
+      description: |
+        Upload an image and create a new render job with specified style and size preset.
+
+        The image is uploaded to object storage and a render job is queued for async processing.
+        Returns immediately with render ID and queued status.
+
+        **Limits:**
+        - Maximum file size: 50 MB
+        - Supported formats: JPEG, PNG, TIFF
+        - Minimum dimensions: 800x600 pixels
+
+      operationId: createRender
+      tags:
+        - renders
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - style_id
+                - size_preset_id
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file to render (JPEG, PNG, or TIFF)
+                style_id:
+                  type: string
+                  format: uuid
+                  description: UUID of the rendering style to apply
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                size_preset_id:
+                  type: string
+                  format: uuid
+                  description: UUID of the output size preset
+                  example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+            examples:
+              basic:
+                summary: Basic render request
+                value:
+                  file: "(binary image data)"
+                  style_id: "550e8400-e29b-41d4-a716-446655440000"
+                  size_preset_id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+      responses:
+        '201':
+          description: Render job created successfully
+          headers:
+            X-RateLimit-Limit:
+              description: Maximum requests per hour (post-MVP)
+              schema:
+                type: integer
+                example: 100
+            X-RateLimit-Remaining:
+              description: Remaining requests in current window (post-MVP)
+              schema:
+                type: integer
+                example: 99
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderCreated'
+              examples:
+                success:
+                  summary: Successful render creation
+                  value:
+                    render_id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    status: "queued"
+                    created_at: "2025-01-24T10:30:00Z"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_file:
+                  summary: No file provided
+                  value:
+                    error: "No file provided"
+                    status: 400
+                missing_style:
+                  summary: Missing style_id
+                  value:
+                    error: "style_id is required"
+                    status: 400
+                invalid_format:
+                  summary: Invalid image format
+                  value:
+                    error: "Invalid image format. Supported: JPEG, PNG, TIFF"
+                    status: 400
+                invalid_uuid:
+                  summary: Invalid UUID format
+                  value:
+                    error: "Invalid UUID format for style_id"
+                    status: 400
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                file_too_large:
+                  summary: File exceeds size limit
+                  value:
+                    error: "File too large (maximum 50MB)"
+                    status: 413
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                server_error:
+                  summary: Internal error
+                  value:
+                    error: "Internal Server Error"
+                    message: "An internal error occurred"
+                    status: 500
+
+  /v1/renders/{id}:
+    get:
+      summary: Get render status
+      description: |
+        Retrieve detailed status and metadata for a render job.
+
+        Use this endpoint to poll render status. Status values:
+        - `queued`: Job is waiting in queue
+        - `processing`: Job is being rendered
+        - `completed`: Rendering complete, files available
+        - `failed`: Rendering failed, see error_message
+
+      operationId: getRender
+      tags:
+        - renders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Render job UUID
+          schema:
+            type: string
+            format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      responses:
+        '200':
+          description: Render details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderStatus'
+              examples:
+                queued:
+                  summary: Queued render
+                  value:
+                    id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    status: "queued"
+                    asset_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    style:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      name: "Watercolor"
+                      slug: "watercolor"
+                    size_preset:
+                      id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                      name: "9x12"
+                      width_inches: 9.0
+                      height_inches: 12.0
+                      dpi: 300
+                    created_at: "2025-01-24T10:30:00Z"
+                    started_at: null
+                    completed_at: null
+                    duration_ms: null
+                    error_message: null
+                completed:
+                  summary: Completed render
+                  value:
+                    id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    status: "completed"
+                    asset_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    style:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      name: "Watercolor"
+                      slug: "watercolor"
+                    size_preset:
+                      id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                      name: "9x12"
+                      width_inches: 9.0
+                      height_inches: 12.0
+                      dpi: 300
+                    created_at: "2025-01-24T10:30:00Z"
+                    started_at: "2025-01-24T10:30:05Z"
+                    completed_at: "2025-01-24T10:32:15Z"
+                    duration_ms: 130000
+                    error_message: null
+                failed:
+                  summary: Failed render
+                  value:
+                    id: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    status: "failed"
+                    asset_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    style:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      name: "Watercolor"
+                      slug: "watercolor"
+                    size_preset:
+                      id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                      name: "9x12"
+                      width_inches: 9.0
+                      height_inches: 12.0
+                      dpi: 300
+                    created_at: "2025-01-24T10:30:00Z"
+                    started_at: "2025-01-24T10:30:05Z"
+                    completed_at: "2025-01-24T10:30:30Z"
+                    duration_ms: 25000
+                    error_message: "Failed to apply rendering filter: insufficient memory"
+        '400':
+          description: Invalid render ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_uuid:
+                  summary: Malformed UUID
+                  value:
+                    error: "Invalid UUID format for render_id"
+                    status: 400
+        '404':
+          description: Render not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  summary: Render does not exist
+                  value:
+                    error: "Render not found"
+                    status: 404
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/renders/{id}/download:
+    get:
+      summary: Get download URL for rendered TIFF
+      description: |
+        Generate a presigned URL for downloading the rendered TIFF output.
+
+        The URL expires after 7 days and provides direct access to the high-resolution
+        TIFF file stored in object storage. Files are typically 20-100 MB depending on size preset.
+
+        **Note:** Only available for renders with `completed` status.
+
+      operationId: downloadRender
+      tags:
+        - renders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Render job UUID
+          schema:
+            type: string
+            format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      responses:
+        '200':
+          description: Download URL generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignedUrl'
+              examples:
+                success:
+                  summary: Presigned URL
+                  value:
+                    url: "https://minio.example.com/render-assets/renders/3fa85f64-5717-4562-b3fc-2c963f66afa6/output.tiff?X-Amz-Algorithm=AWS4-HMAC-SHA256&..."
+                    expires_in: 604800
+        '400':
+          description: Invalid render ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Render not found or output not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  summary: Render not found
+                  value:
+                    error: "Render not found"
+                    status: 404
+                no_output:
+                  summary: Output file not available
+                  value:
+                    error: "Output file not available"
+                    status: 404
+        '409':
+          description: Render not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_completed:
+                  summary: Render still processing
+                  value:
+                    error: "Render not completed (current status: processing)"
+                    status: 409
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/renders/{id}/preview:
+    get:
+      summary: Get preview URL for JPEG preview
+      description: |
+        Generate a presigned URL for downloading the JPEG preview.
+
+        Preview images are web-optimized JPEGs at 1200px on the longest edge,
+        typically 200-500 KB. Useful for quick visual verification before downloading
+        the full TIFF.
+
+        The URL expires after 7 days.
+
+      operationId: previewRender
+      tags:
+        - renders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Render job UUID
+          schema:
+            type: string
+            format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      responses:
+        '200':
+          description: Preview URL generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignedUrl'
+              examples:
+                success:
+                  summary: Presigned URL for preview
+                  value:
+                    url: "https://minio.example.com/render-assets/renders/3fa85f64-5717-4562-b3fc-2c963f66afa6/preview.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&..."
+                    expires_in: 604800
+        '400':
+          description: Invalid render ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Render or preview not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  summary: Render not found
+                  value:
+                    error: "Render not found"
+                    status: 404
+                no_preview:
+                  summary: Preview not available
+                  value:
+                    error: "Preview not available"
+                    status: 404
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/size-presets:
+    get:
+      summary: List available size presets
+      description: |
+        Retrieve all available print size presets with calculated pixel dimensions.
+
+        Presets are ordered by area (smallest to largest). All presets use 300 DPI
+        for professional print quality.
+
+        Use the `id` field when creating render jobs.
+
+      operationId: listSizePresets
+      tags:
+        - presets
+      responses:
+        '200':
+          description: Size presets retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SizePreset'
+              examples:
+                success:
+                  summary: Available size presets
+                  value:
+                    - id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                      name: "9x12"
+                      width_inches: 9.0
+                      height_inches: 12.0
+                      dpi: 300
+                      width_px: 2700
+                      height_px: 3600
+                    - id: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
+                      name: "12x16"
+                      width_inches: 12.0
+                      height_inches: 16.0
+                      dpi: 300
+                      width_px: 3600
+                      height_px: 4800
+                    - id: "6ba7b812-9dad-11d1-80b4-00c04fd430c8"
+                      name: "16x20"
+                      width_inches: 16.0
+                      height_inches: 20.0
+                      dpi: 300
+                      width_px: 4800
+                      height_px: 6000
+                    - id: "6ba7b813-9dad-11d1-80b4-00c04fd430c8"
+                      name: "18x24"
+                      width_inches: 18.0
+                      height_inches: 24.0
+                      dpi: 300
+                      width_px: 5400
+                      height_px: 7200
+                    - id: "6ba7b814-9dad-11d1-80b4-00c04fd430c8"
+                      name: "24x36"
+                      width_inches: 24.0
+                      height_inches: 36.0
+                      dpi: 300
+                      width_px: 7200
+                      height_px: 10800
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: Comprehensive health check
+      description: |
+        Check health of all service dependencies: PostgreSQL, Redis, and MinIO.
+
+        Returns 200 if all dependencies are healthy, 503 if any are unhealthy.
+        Used by load balancers and monitoring systems.
+
+      operationId: healthCheck
+      tags:
+        - monitoring
+      responses:
+        '200':
+          description: All dependencies healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              examples:
+                healthy:
+                  summary: All systems healthy
+                  value:
+                    status: "healthy"
+                    timestamp: "2025-01-24T10:30:00Z"
+                    checks:
+                      database: "ok"
+                      redis: "ok"
+                      storage: "ok"
+        '503':
+          description: One or more dependencies unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              examples:
+                unhealthy:
+                  summary: Database connection failed
+                  value:
+                    status: "unhealthy"
+                    timestamp: "2025-01-24T10:30:00Z"
+                    checks:
+                      database: "Connection refused"
+                      redis: "ok"
+                      storage: "ok"
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: |
+        Expose application metrics in Prometheus text format.
+
+        Includes:
+        - HTTP request counts and durations
+        - Active database connections
+        - Queue depth and processing rates
+        - Error rates by endpoint
+
+      operationId: metricsEndpoint
+      tags:
+        - monitoring
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP http_requests_total Total HTTP requests
+                # TYPE http_requests_total counter
+                http_requests_total{method="POST",endpoint="/v1/renders",status="201"} 42
+                # HELP http_request_duration_seconds HTTP request duration
+                # TYPE http_request_duration_seconds histogram
+                http_request_duration_seconds_bucket{le="0.1"} 35
+                http_request_duration_seconds_bucket{le="0.5"} 40
+
+  /v1/openapi.json:
+    get:
+      summary: OpenAPI specification
+      description: |
+        Get the complete OpenAPI 3.0 specification for this API in JSON format.
+
+        Use this endpoint to generate client SDKs, import into API testing tools,
+        or integrate with API gateways.
+
+      operationId: getOpenApiSpec
+      tags:
+        - documentation
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/json:
+              schema:
+                type: object
+                description: OpenAPI 3.0 specification object
+
+components:
+  schemas:
+    RenderCreated:
+      type: object
+      required:
+        - render_id
+        - status
+        - created_at
+      properties:
+        render_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the render job
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        status:
+          type: string
+          enum: [queued]
+          description: Initial status is always 'queued'
+          example: "queued"
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of job creation
+          example: "2025-01-24T10:30:00Z"
+
+    RenderStatus:
+      type: object
+      required:
+        - id
+        - status
+        - asset_id
+        - style
+        - size_preset
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Render job UUID
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+          description: Current render status
+          example: "completed"
+        asset_id:
+          type: string
+          format: uuid
+          description: UUID of the uploaded source image
+          example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        style:
+          type: object
+          required:
+            - id
+            - name
+            - slug
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "550e8400-e29b-41d4-a716-446655440000"
+            name:
+              type: string
+              example: "Watercolor"
+            slug:
+              type: string
+              example: "watercolor"
+        size_preset:
+          $ref: '#/components/schemas/SizePreset'
+        created_at:
+          type: string
+          format: date-time
+          description: When the job was created
+          example: "2025-01-24T10:30:00Z"
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When rendering started (null if not started)
+          example: "2025-01-24T10:30:05Z"
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When rendering completed or failed (null if not finished)
+          example: "2025-01-24T10:32:15Z"
+        duration_ms:
+          type: integer
+          nullable: true
+          description: Total rendering duration in milliseconds (null if not finished)
+          example: 130000
+        error_message:
+          type: string
+          nullable: true
+          description: Error description if status is 'failed'
+          example: "Failed to apply rendering filter: insufficient memory"
+
+    SizePreset:
+      type: object
+      required:
+        - id
+        - name
+        - width_inches
+        - height_inches
+        - dpi
+        - width_px
+        - height_px
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Size preset UUID
+          example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+        name:
+          type: string
+          description: Preset name (dimensions in inches)
+          example: "9x12"
+        width_inches:
+          type: number
+          format: float
+          description: Width in inches
+          example: 9.0
+        height_inches:
+          type: number
+          format: float
+          description: Height in inches
+          example: 12.0
+        dpi:
+          type: integer
+          description: Dots per inch (always 300 for print quality)
+          example: 300
+        width_px:
+          type: integer
+          description: Calculated width in pixels (width_inches * dpi)
+          example: 2700
+        height_px:
+          type: integer
+          description: Calculated height in pixels (height_inches * dpi)
+          example: 3600
+
+    PresignedUrl:
+      type: object
+      required:
+        - url
+        - expires_in
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Presigned URL for direct file download
+          example: "https://minio.example.com/render-assets/renders/3fa85f64-5717-4562-b3fc-2c963f66afa6/output.tiff?X-Amz-Algorithm=AWS4-HMAC-SHA256&..."
+        expires_in:
+          type: integer
+          description: URL expiration time in seconds (604800 = 7 days)
+          example: 604800
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of health check
+          example: "2025-01-24T10:30:00Z"
+        checks:
+          type: object
+          description: Individual component health
+          properties:
+            database:
+              type: string
+              description: PostgreSQL status
+              example: "ok"
+            redis:
+              type: string
+              description: Redis status
+              example: "ok"
+            storage:
+              type: string
+              description: MinIO/S3 status
+              example: "ok"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid UUID format for render_id"
+        message:
+          type: string
+          description: Additional error details
+          example: "The requested resource was not found"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
