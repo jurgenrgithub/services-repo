@@ -143,8 +143,12 @@ def process_render(
             target_height = int(render_data['height_inches'] * render_data['dpi'])
 
             # Create pipeline and process
-            # Load the source image
+            # Load the source image and upscale if needed
+            from upscaler import upscale_image
+            target_size = (target_width, target_height)
             source_image = Image.open(input_path)
+            # Upscale source image if needed for target print size
+            source_image = upscale_image(source_image, target_size)
             pipeline = pipeline_class()
             output_image = pipeline.render(source_image)
 

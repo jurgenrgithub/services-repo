@@ -18,7 +18,7 @@ Pillow==10.2.0
 numpy==1.26.3
 scipy==1.11.4
 scikit-learn==1.4.0
-opencv-python==4.9.0.80
+opencv-contrib-python==4.8.1.78  # Includes dnn_superres for AI upscaling
 
 # Monitoring
 prometheus-client==0.19.0
