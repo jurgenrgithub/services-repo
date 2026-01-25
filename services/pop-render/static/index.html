@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pop-Render Test</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d4ff; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; }
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #16213e;
+            color: #eee;
+            font-size: 14px;
+        }
+        select:focus { border-color: #00d4ff; outline: none; }
+        .file-input-wrapper {
+            border: 2px dashed #444;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .file-input-wrapper:hover { border-color: #00d4ff; }
+        .file-input-wrapper.has-file { border-color: #00ff88; border-style: solid; }
+        .file-input-wrapper input { display: none; }
+        button {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #000;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s;
+        }
+        button:hover { transform: translateY(-2px); }
+        button:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #16213e;
+            border-radius: 8px;
+            display: none;
+        }
+        .result.show { display: block; }
+        .result h3 { margin-top: 0; color: #00d4ff; }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status.queued { background: #ff9800; color: #000; }
+        .status.started { background: #2196f3; color: #fff; }
+        .status.completed { background: #4caf50; color: #fff; }
+        .status.failed { background: #f44336; color: #fff; }
+        .preview-container { margin-top: 20px; text-align: center; }
+        .preview-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #888; }
+        .error { color: #f44336; margin-top: 10px; }
+        .styles-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .style-option {
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .style-option:hover { border-color: #00d4ff; }
+        .style-option.selected { border-color: #00d4ff; background: #16213e; }
+        .style-option .name { font-weight: 600; margin-bottom: 5px; }
+        .style-option .desc { font-size: 11px; color: #888; }
+        .upload-preview { max-width: 200px; margin-top: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Pop-Render</h1>
+    <p class="subtitle">Image transformation service - Upload an image and apply artistic styles</p>
+
+    <form id="renderForm">
+        <div class="form-group">
+            <label>Image</label>
+            <div class="file-input-wrapper" id="dropZone">
+                <input type="file" id="imageFile" accept="image/*" required>
+                <div id="fileLabel">Drop image here or click to browse</div>
+                <img id="uploadPreview" class="upload-preview" style="display:none">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Style</label>
+            <div class="styles-grid" id="stylesGrid"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Output Size</label>
+            <select id="sizePreset" required></select>
+        </div>
+
+        <button type="submit" id="submitBtn">Create Render</button>
+    </form>
+
+    <div class="result" id="result">
+        <h3>Render Result</h3>
+        <div id="resultContent"></div>
+        <div class="preview-container" id="previewContainer"></div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let selectedStyle = null;
+
+        const styleData = [
+            { id: 'fd8a5735-0029-423f-ba8f-71b84535a3f1', name: 'Pop - Coastal', desc: 'Teal/cream beach vibe' },
+            { id: '1100fcb3-29df-423b-bcac-60dc4938602a', name: 'Pop - Coastal Poster', desc: 'Aggressive graphic print' },
+            { id: '9fb95d4b-73e4-4aa9-beb9-e7d20a9c4f68', name: 'Pop - Rebel', desc: 'Bold purple drama' },
+            { id: '460fbc62-2d41-49c1-a1e0-06cab0062224', name: 'Pencil Sketch', desc: 'Realistic pencil drawing' },
+            { id: '70e03ca3-25fc-4f2d-932f-48c74323f978', name: 'Between Lines', desc: 'Artistic line hatching' }
+        ];
+
+        async function loadPresets() {
+            try {
+                const resp = await fetch(API_BASE + '/v1/size-presets');
+                const presets = await resp.json();
+                const select = document.getElementById('sizePreset');
+                presets.forEach(function(p) {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name + ' (' + p.width_px + 'x' + p.height_px + 'px @ ' + p.dpi + 'dpi)';
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.error('Failed to load presets:', err);
+            }
+        }
+
+        function renderStyles() {
+            const grid = document.getElementById('stylesGrid');
+            styleData.forEach(function(s) {
+                const div = document.createElement('div');
+                div.className = 'style-option';
+                div.setAttribute('data-id', s.id);
+                div.innerHTML = '<div class="name">' + s.name + '</div><div class="desc">' + s.desc + '</div>';
+                div.onclick = function() { selectStyle(s.id); };
+                grid.appendChild(div);
+            });
+            selectStyle(styleData[0].id);
+        }
+
+        function selectStyle(id) {
+            selectedStyle = id;
+            var options = document.querySelectorAll('.style-option');
+            for (var i = 0; i < options.length; i++) {
+                if (options[i].getAttribute('data-id') === id) {
+                    options[i].classList.add('selected');
+                } else {
+                    options[i].classList.remove('selected');
+                }
+            }
+        }
+
+        var dropZone = document.getElementById('dropZone');
+        var fileInput = document.getElementById('imageFile');
+        var fileLabel = document.getElementById('fileLabel');
+        var uploadPreview = document.getElementById('uploadPreview');
+
+        dropZone.onclick = function() { fileInput.click(); };
+        dropZone.ondragover = function(e) { e.preventDefault(); dropZone.style.borderColor = '#00d4ff'; };
+        dropZone.ondragleave = function() { dropZone.style.borderColor = '#444'; };
+        dropZone.ondrop = function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = '#444';
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileLabel();
+            }
+        };
+        fileInput.onchange = updateFileLabel;
+
+        function updateFileLabel() {
+            if (fileInput.files.length) {
+                var file = fileInput.files[0];
+                fileLabel.textContent = file.name;
+                dropZone.classList.add('has-file');
+
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    uploadPreview.src = e.target.result;
+                    uploadPreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        document.getElementById('renderForm').onsubmit = async function(e) {
+            e.preventDefault();
+            var btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+
+            var formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('style_id', selectedStyle);
+            formData.append('size_preset_id', document.getElementById('sizePreset').value);
+
+            try {
+                var resp = await fetch(API_BASE + '/v1/renders', { method: 'POST', body: formData });
+                var data = await resp.json();
+
+                if (!resp.ok) throw new Error(data.error || 'Failed to create render');
+
+                showResult(data);
+                pollStatus(data.render_id);
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Render';
+            }
+        };
+
+        function showResult(data) {
+            var result = document.getElementById('result');
+            result.classList.add('show');
+            document.getElementById('previewContainer').innerHTML = '';
+            updateResultContent(data);
+        }
+
+        function updateResultContent(data) {
+            var content = document.getElementById('resultContent');
+            var html = '<div class="info-row"><span class="info-label">Render ID</span><span>' + (data.render_id || data.id) + '</span></div>';
+            html += '<div class="info-row"><span class="info-label">Status</span><span class="status ' + data.status + '">' + data.status + '</span></div>';
+            if (data.duration_ms) {
+                html += '<div class="info-row"><span class="info-label">Duration</span><span>' + data.duration_ms + 'ms</span></div>';
+            }
+            if (data.error_message) {
+                html += '<div class="error">' + data.error_message + '</div>';
+            }
+            content.innerHTML = html;
+        }
+
+        async function pollStatus(renderId) {
+            var resp = await fetch(API_BASE + '/v1/renders/' + renderId);
+            var data = await resp.json();
+            updateResultContent(data);
+
+            if (data.status === 'completed') {
+                loadPreview(renderId);
+            } else if (data.status === 'queued' || data.status === 'started') {
+                setTimeout(function() { pollStatus(renderId); }, 1000);
+            }
+        }
+
+        function loadPreview(renderId) {
+            var container = document.getElementById('previewContainer');
+            container.innerHTML = '<img src="' + API_BASE + '/v1/renders/' + renderId + '/preview/image" alt="Render preview">';
+        }
+
+        function showError(msg) {
+            var result = document.getElementById('result');
+            result.classList.add('show');
+            document.getElementById('resultContent').innerHTML = '<div class="error">' + msg + '</div>';
+        }
+
+        loadPresets();
+        renderStyles();
+    </script>
+</body>
+</html>
